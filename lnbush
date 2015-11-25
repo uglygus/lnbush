@@ -1,0 +1,109 @@
+#!/bin/bash
+
+# 
+# lnbush - link bush
+# 
+# create a copy of a directory tree where all files are symlinks to the originals but 
+# all directories are legitimate directories
+# 
+#
+
+#Set Script Name variable
+SCRIPT=$(basename "${BASH_SOURCE[0]}" )
+
+
+USAGE="Usage: $0 [-vh] sourcedir destinationdir"
+
+
+#Help function
+function help {
+  echo -e \\n"${SCRIPT}"\\n
+  echo -e "$USAGE"\\n
+  
+  echo -e "Recursively copies a directory but uses symlinks for all the files."
+  echo -e "Will create destination dir if it does not exist."
+    
+  echo "-v    increase verbosity"
+  echo -e "-h    Displays this help message. No further functions are performed."\\n
+  echo -e "Example: $SCRIPT -v  ./media/movies ~/Desktop/movies"\\n
+  exit 1
+}
+
+ 
+
+VERBOSE=false
+
+#parse commandline options
+while getopts "vh" FLAG; do
+  case $FLAG in
+    v)  
+      VERBOSE=true
+      ;;
+    h)  
+      help
+      ;;
+    \?) #unrecognized option - show help
+      help
+      ;;
+  esac 
+done
+
+shift $((OPTIND-1))  #This tells getopts to move on to the next argument.
+
+SOURCE=$1
+DESTINATION=$2
+
+if [ ! -d "$SOURCE" ]; then
+	echo "$0: $SOURCE is not a directory"
+	echo "$USAGE"
+	exit 2
+fi
+
+if [ ! -d "$DESTINATION" ]; then
+	echo "$0: $DESTINATION is not a directory. Creating it."
+    mkdir -p "$DESTINATION"
+fi
+
+cd "$SOURCE" || exit
+PWD=$(pwd)
+
+if [ "$(cd "$DESTINATION"; pwd)" = "$PWD" ]; then
+	echo "$PWD: FROM and TO are identical!"
+	exit 1
+fi
+
+export SOURCE
+export DESTINATION
+export VERBOSE
+
+
+if $VERBOSE ; then
+    echo -e \\n"     Source: $SOURCE"
+    echo -e "Destination: $DESTINATION"\\n
+fi
+
+# create directory tree
+find . -type d -print0 | xargs -0 bash -c 'for DIR in "$@"; 
+do
+    DIR=${DIR:1}
+
+    if $VERBOSE ; then  echo "mkdir -p ${DESTINATION}${DIR}"; fi
+    
+    mkdir -p "${DESTINATION}${DIR}"
+done; ' -
+
+if $VERBOSE ; then  echo ; fi
+    
+
+#create symlinks to files
+find . -type f -print0 |  xargs -0 bash -c 'for FILE in "$@"; 
+do
+    FILE=${FILE:1}
+    
+    if $VERBOSE ; then echo "ln -s  \"${SOURCE}${FILE}\"  \"${DESTINATION}${FILE}\" "; fi
+
+    ln -s  "${SOURCE}${FILE}"  "${DESTINATION}${FILE}" > /dev/null 2>&1
+done; ' -
+
+
+if $VERBOSE ; then echo "OK" ; fi

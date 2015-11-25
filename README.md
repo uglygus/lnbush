@@ -17,6 +17,6 @@ Similar to the perl program [lntree](http://search.cpan.org/~rokr/App-lntree-0.0
 
 
 ```
-	lnbush -[vh] sourced targetdir
+	lnbush -[vh] sourcedir targetdir
 ```
 

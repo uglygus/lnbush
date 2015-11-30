@@ -12,7 +12,7 @@
 SCRIPT=$(basename "${BASH_SOURCE[0]}" )
 
 
-USAGE="Usage: $0 [-vh] sourcedir destinationdir"
+USAGE="Usage: $0 [-vhads] sourcedir destinationdir"
 
 
 #Help function
@@ -21,20 +21,23 @@ function help {
   echo -e "$USAGE"\\n
   
   echo -e "Recursively copies a directory but uses symlinks for all the files."
-  echo -e "Will create destination dir if it does not exist."
-    
-  echo "-v    increase verbosity"
+  echo -e "Will create destination dir if it does not exist."\\n
+
+  echo -e "-s    use symbolic links for created links[default]"  
+  echo -e "-d    use hard links for created links"  
+  echo -e "-a    use Mac OSX aliases for links"        
+  echo -e "-v    verbose"
   echo -e "-h    Displays this help message. No further functions are performed."\\n
-  echo -e "Example: $SCRIPT -v  ./media/movies ~/Desktop/movies"\\n
+  echo -e "Example: $SCRIPT -va  ./media/movies ~/Desktop/movies"\\n
   exit 1
 }
 
  
-
+LINKS=soft
 VERBOSE=false
 
 #parse commandline options
-while getopts "vh" FLAG; do
+while getopts "vhads" FLAG; do
   case $FLAG in
     v)  
       VERBOSE=true
@@ -42,6 +45,15 @@ while getopts "vh" FLAG; do
     h)  
       help
       ;;
+    a) 
+      LINKS=aliases
+      ;;       
+    d)
+      LINKS=hard
+      ;;
+    s) 
+      LINKS=soft
+      ;;             
     \?) #unrecognized option - show help
       help
       ;;
@@ -75,11 +87,12 @@ fi
 export SOURCE
 export DESTINATION
 export VERBOSE
-
+export LINKS
 
 if $VERBOSE ; then
     echo -e \\n"     Source: $SOURCE"
-    echo -e "Destination: $DESTINATION"\\n
+    echo -e "Destination: $DESTINATION"
+    echo -e "      Links: $LINKS\n\n"
 fi
 
 # create directory tree
@@ -92,18 +105,38 @@ do
     mkdir -p "${DESTINATION}${DIR}"
 done; ' -
 
-if $VERBOSE ; then  echo ; fi
-    
 
 #create symlinks to files
 find . -type f -print0 |  xargs -0 bash -c 'for FILE in "$@"; 
 do
     FILE=${FILE:1}
     
-    if $VERBOSE ; then echo "ln -s  \"${SOURCE}${FILE}\"  \"${DESTINATION}${FILE}\" "; fi
+    if [ "$LINKS" = "soft" ] ; then
+        if $VERBOSE ; then echo "ln -s  \"${SOURCE}${FILE}\"  \"${DESTINATION}${FILE}\" "; fi
+        ln -s  "${SOURCE}${FILE}"  "${DESTINATION}${FILE}" > /dev/null 2>&1
+    fi
+    
+    if [ "$LINKS" == "hard" ] ; then
+        if $VERBOSE ; then echo "ln \"${SOURCE}${FILE}\"  \"${DESTINATION}${FILE}\" "; fi
+        ln  "${SOURCE}${FILE}"  "${DESTINATION}${FILE}" > /dev/null 2>&1
+    fi
+    
+    if [ "$LINKS" == "aliases" ] ; then
+        if $VERBOSE ; then echo "aliasing \"${SOURCE}${FILE}\"  \"${DESTINATION}\" "; fi
+ 
+        DESTINATION_FOLDER=$(dirname "${DESTINATION}${FILE}")
 
-    ln -s  "${SOURCE}${FILE}"  "${DESTINATION}${FILE}" > /dev/null 2>&1
+        /usr/bin/osascript > /dev/null <<EOT
+        tell application "Finder"
+            set macSrcPath to (POSIX file  "${SOURCE}${FILE}" as text)
+            set macDestPath to (POSIX file  "${DESTINATION_FOLDER}" as text)
+            make new alias file to file macSrcPath at folder macDestPath
+
+        end tell
+EOT
+
+    fi    
+           
 done; ' -
 
 
-if $VERBOSE ; then echo "OK" ; fi
